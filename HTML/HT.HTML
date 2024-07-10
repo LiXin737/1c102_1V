@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>传感器数据监控</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h1>传感器数据</h1>
+    <p id="latest-data">加载中...</p>
+    <button onclick="toggleFan()">切换风扇状态</button>
+    <canvas id="myChart" width="400" height="200"></canvas>
+    <script>
+        var ctx = document.getElementById('myChart').getContext('2d');
+        var data = {{ data | tojson | safe }};
+
+        var labels = [];
+        var temperatures = [];
+        var humidities = [];
+        var lightIntensities = [];
+        var soilMoistures = [];
+        var alarms = [];
+        var presences = [];
+        var fanStates = [];
+
+        data.forEach(function(item, index) {
+            labels.push(index);
+            temperatures.push(item[0]);
+            humidities.push(item[1]);
+            lightIntensities.push(item[2]);
+            soilMoistures.push(item[3]);
+            alarms.push(item[4]);
+            presences.push(item[5]);
+            fanStates.push(item[6]);
+        });
+
+        var myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '温度 (°C)',
+                    data: temperatures,
+                    borderColor: 'rgba(255, 99, 132, 1)',
+                    borderWidth: 1,
+                    fill: false
+                }, {
+                    label: '湿度 (%)',
+                    data: humidities,
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1,
+                    fill: false
+                }, {
+                    label: '光照强度',
+                    data: lightIntensities,
+                    borderColor: 'rgba(255, 206, 86, 1)',
+                    borderWidth: 1,
+                    fill: false
+                }, {
+                    label: '土壤湿度',
+                    data: soilMoistures,
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1,
+                    fill: false
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        function fetchLatestData() {
+            fetch('/latest')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('latest-data').innerText = `温度: ${data.temperature} °C, 湿度: ${data.humidity} %, 光照: ${data.light_intensity}, 土壤湿度: ${data.soil_moisture}, 报警: ${data.alarm ? '是' : '否'}, 有人: ${data.presence ? '是' : '否'}, 风扇: ${data.fan_state ? '开' : '关'}`;
+                })
+                .catch(error => {
+                    console.error('Error fetching latest data:', error);
+                });
+        }
+
+        function toggleFan() {
+            fetch('/latest')
+                .then(response => response.json())
+                .then(data => {
+                    const newFanState = data.fan_state ? 0 : 1;
+                    fetch('/fan', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ fan_state: newFanState })
+                    })
+                    .then(response => response.json())
+                    .then(result => {
+                        if (result.status === "success") {
+                            fetchLatestData();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error updating fan state:', error);
+                    });
+                });
+        }
+
+        setInterval(fetchLatestData, 5000); // 每5秒刷新一次
+        fetchLatestData(); // 初始化时立即加载一次数据
+    </script>
+</body>
+</html>
